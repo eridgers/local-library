@@ -1,0 +1,19 @@
+extends layout
+
+block content
+  h1= title
+
+  ul
+    each book in books
+      li
+        a(href=book.url) #{book.book.title}  : #{book.imprint} -
+      if book.status == 'Available'
+        span.text-success #{book.status}
+      else if book.status == 'Maintenance'
+        span.text-danger #{book.status}
+      else
+        span.text-warning #{book.status} 
+      if book.status != 'Available'
+        span  (Due: #{book.due_back_formatted})
+    else
+      li There are no book copies in this library ;(
