@@ -139,13 +139,49 @@ exports.book_create_post = [
 ];
 
 // Display book delete form on GET.
-exports.book_delete_get = function(req, res) {
-    res.send('NOT IMPLEMENTED: Book delete GET');
+exports.book_delete_get = function(req, res, next) {
+// use async to get book, book instances
+    async.parallel({
+        book: function(callback){
+            Book.findById(req.params.id).populate('author').populate('genre').exec(callback)
+        },
+        book_instance: function(callback){
+            BookInstance.find({'book': req.params.id}).exec(callback)
+        },
+    }, function(err, results){// check errors
+        if(err) {return next(err);}
+        // render list page if no results else render delete
+        if(results.book==null){
+            res.redirect('/catalog/books')
+        }
+        res.render('book_delete', {title: 'Delete Book', book: results.book, books: results.book_instance});
+    });
 };
 
 // Handle book delete on POST.
-exports.book_delete_post = function(req, res) {
-    res.send('NOT IMPLEMENTED: Book delete POST');
+exports.book_delete_post = function(req, res, next) {
+// use async to get book, book instances
+    async.parallel({
+        book: function(callback){
+            Book.findById(req.body.id).populate('author').populate('genre').exec(callback)
+        },
+        book_instance: function(callback){
+            BookInstance.find({'book': req.body.id}).exec(callback)
+        },
+    }, function(err, results){
+        // check erors
+        if(err) {return next(err);}
+        // check if book instances exist, render book delete if so
+        if(results.book_instance.length > 0){
+            res.redirect('book_delete', {title: 'Delete Book', book: results.book, books: results.book_instance});
+        }else{
+            // else delete dat book, render books list after
+            Book.findByIdAndRemove(req.body.id, function deleteBook(err){
+                if(err) {return next(err);}
+                res.redirect('/catalog/books');
+            });
+        }
+    });
 };
 
 // Display book update form on GET.
