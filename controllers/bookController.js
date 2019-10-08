@@ -4,6 +4,8 @@ var Genre = require('../models/genre');
 var BookInstance = require('../models/bookinstance');
 
 var async = require('async');
+const {sanitizeBody} = require('express-validator');
+const {body, validationResult} = require('express-validator');
 
 exports.index = function(req, res) {
     async.parallel({
