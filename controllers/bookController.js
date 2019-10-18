@@ -185,11 +185,104 @@ exports.book_delete_post = function(req, res, next) {
 };
 
 // Display book update form on GET.
-exports.book_update_get = function(req, res) {
-    res.send('NOT IMPLEMENTED: Book update GET');
+exports.book_update_get = function(req, res, next) {
+    // get book, authors and genres for form
+    async.parallel({
+        book: function(callback){
+            Book.findById(req.params.id).populate('author').populate('genre').exec(callback)
+        },
+        authors: function(callback){
+            Author.find(callback); //finds all
+        },
+        genres: function(callback){
+            Genre.find(callback); //finds all
+        },
+    }, function(err, results){
+        if(err) {return next(err);}
+        if(results.book==null){
+            var err = new Error('Book not found');
+            err.status = 404;
+            return next(err);
+        }
+        //success, mark select genres as checked
+        for(var i = 0; i < results.genres.length; i++){
+            for(var j = 0; j < results.book.genre.length; j++){
+                // loop through all genres and tick box if genre is returned against book results
+                if(results.genres[i]._id.toString()==results.book.genre[j]._id.toString()){
+                    results.genres[i].checked='true';
+                }
+            }
+        }
+        res.render('book_form', {title: 'Update Book', authors: results.authors, genres: results.genres, book: results.book});
+    });
 };
 
 // Handle book update on POST.
-exports.book_update_post = function(req, res) {
-    res.send('NOT IMPLEMENTED: Book update POST');
-};
+exports.book_update_post = [
+    //convert genre to array
+    (req, res, next) => {
+        if(!(req.body.genre instanceof Array)){
+            if(typeof req.body.genre==='undefined'){
+                req.body.genre = [];
+            }else{
+                req.body.genre = new Array(req.body.genre);
+            }
+        }
+        next();
+    },
+    // validate fields
+    body('title', 'Title must not be empty').isLength({min: 1}).trim(),
+    body('author', 'Author must not be empty').isLength({min: 1}).trim(),
+    body('summary', 'Summary must not be empty').isLength({min: 1}).trim(),
+    body('isbn', 'ISBN must not be empty').isLength({min: 1}).trim(),
+    //sanititze
+    sanitizeBody('title').escape(),
+    sanitizeBody('author').escape(),
+    sanitizeBody('summary').escape(),
+    sanitizeBody('isbn').escape(),
+    sanitizeBody('genre.*').escape(),
+    //process request after validate and sanitize
+    (req, res, next) => {
+        //get errors from request
+        const errors = validationResult(req);
+        //create book
+        var book = new Book(
+            {
+                title: req.body.title,
+                author: req.body.author,
+                summary: req.body.summary,
+                isbn: req.body.isbn,
+                genre: (typeof req.body.genre==='undefined') ? [] : req.body.genre,
+                _id:req.params.id //need this or new id will be assigned.
+            });
+        if(!errors.isEmpty()){
+            //errors render form again
+            async.parallel({
+                authors: function(callback) {
+                    Author.find(callback);
+                },
+                genres: function(callback){
+                    Genre.find(callback);
+                },                
+            }, function(err, results){
+                if(err) {return next(err);}
+                //check(tick) selected genres
+                for(let i = 0; i < results.genre.length; i++){
+                    if(book.genre.indexOf(results.genres[i]._id) > -1){
+                        results.genres[i].checked='true';
+                    }
+                }
+                res.render('book_form', {title: 'Update Book', authors: results.authors, genres: results.genres, book: book, errors: errors.Array()});
+            });
+            return;
+        }else{
+            //data valid update record
+            Book.findByIdAndUpdate(req.params.id, book, {}, function(err, thebook){
+                if(err) {return next(err);}
+                // go to newly created book
+                res.redirect(thebook.url);
+            });
+        }
+    }
+];
+
